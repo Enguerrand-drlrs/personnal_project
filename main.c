@@ -16,30 +16,87 @@ typedef struct GridCell {
 
 
 // make the grid
-#define GRID_SIZE 10
-GridCell grid[GRID_SIZE][GRID_SIZE];
+#define GRID_X 10
+#define GRID_Y 10
+GridCell grid[GRID_X][GRID_Y];
 void init_grid() {
-    for (int i = 0; i < GRID_SIZE; i++) {
-        for (int j = 0; j < GRID_SIZE; j++) {
+    for (int i = 0; i < GRID_X; i++) {
+        for (int j = 0; j < GRID_Y; j++) {
             grid[i][j].status = 0; // all cells dead initially
         }
     }
 }
+void first_grid(){
+    printf("\n\n");
+    for (int i = 0; i < GRID_X; i++) {
+        for (int j = 0; j < GRID_Y; j++) {
+            grid[i][j].status = rand() % 2; // random alive or dead
+            if (grid[i][j].status == 1){
+                printf("*");
+            } else {
+            printf(".");
+            }
+        }
+        printf("\n");
+    }
+}
+
+void get_cell_state(int x, int y){
+
+}
+
+int num_neighbors(int x, int y){
+    int num = 0;
+    for (int i = -1; i <= 1; i++) {
+        for (int j = -1; j <= 1; j++) {
+            if (i == 0 && j == 0)
+                continue; // skip the cell itself
+            int nx = x + i;
+            int ny = y + j;
+            if (nx >= 0 && nx < GRID_X && ny >= 0 && ny < GRID_Y) {
+                if (grid[nx][ny].status == 1)
+                    num++;
+            }
+        }
+    }
+    return num;
+}
+
+
+void next_generation() {
+    GridCell new_grid[GRID_X][GRID_Y];
+
     
-void get_cell_state(x,y){}
 
-void num_neighbors(x,y){}
+    // Copy new grid to main grid
+    for (int i = 0; i < GRID_X; i++) {
+        for (int j = 0; j < GRID_Y; j++) {
+            grid[i][j].status = new_grid[i][j].status;
+        }
+    }
+}
 
-void get_next_state(x,y){}
 
-void next_generation(){}
-
+void print_grid() {
+    for (int i = 0; i < GRID_X; i++) {
+        for (int j = 0; j < GRID_Y; j++) {
+            printf("%c", grid[i][j].status ? '*' : '.');
+        }
+        printf("\n");
+    }
+}
 
 int main() {
     init_grid(); 
+    first_grid();
     for ( int i=0; i<1000; i++){
+        //printf("\nGeneration %d:\n", i+1);
         next_generation();
-        clock_gettime();
+        
+        
+        //clock_gettime();
     }
+    printf("\nFinal Generation:\n");
+    print_grid();
     return 0;
 }
