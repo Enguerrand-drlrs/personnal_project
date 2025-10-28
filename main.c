@@ -1,5 +1,5 @@
 #include "gameoflife.h"
-#include "gameoflife.c"
+#include <time.h>
 /*
 Rules : 
 Any celles with fewer than 2 neighbourgs die (underpopulation)
@@ -8,90 +8,36 @@ Any celles with more than 3 neighbours die (overpopulation)
 Any dead celles with exactly 3 neighbours become a live celle (reproduction)
 */
 
-unsigned char status = 0; // 0 = dead, 1 = alive
+int main(int argc, char **argv) {
+    uint16_t width  = 50;
+    uint16_t height = 20;
+    uint16_t gens   = 100;
 
+    srand(time(NULL));
 
-
-
-
-void init_grid() {
-    for (int i = 0; i < GRID_X; i++) {
-        for (int j = 0; j < GRID_Y; j++) {
-            grid[i][j].status = 0; // all cells dead initially
-        }
+    LifeWorld *w = life_create(width, height);
+    if (!w) {
+        fprintf(stderr, "Memory allocation failed!\n");
+        return 1;
     }
-}
-void first_grid(){
-    printf("\n\n");
-    for (int i = 0; i < GRID_X; i++) {
-        for (int j = 0; j < GRID_Y; j++) {
-            grid[i][j].status = rand() % 2; // random alive or dead
-            if (grid[i][j].status == 1){
-                printf("*");
-            } else {
-            printf(".");
-            }
-        }
-        printf("\n");
+
+    life_randomize(w);
+
+    FILE *out = fopen("life_output.txt", "w");
+    if (!out) {
+        perror("Error creating output file");
+        life_destroy(w);
+        return 1;
     }
-}
 
-void get_cell_state(int x, int y){
-
-}
-
-int num_neighbors(int x, int y){
-    int num = 0;
-    for (int i = -1; i <= 1; i++) {
-        for (int j = -1; j <= 1; j++) {
-            if (i == 0 && j == 0)
-                continue; // skip the cell itself
-            int nx = x + i;
-            int ny = y + j;
-            if (nx >= 0 && nx < GRID_X && ny >= 0 && ny < GRID_Y) {
-                if (grid[nx][ny].status == 1)
-                    num++;
-            }
-        }
+    for (uint16_t g = 0; g < gens; g++) {
+        life_save(out, w, g);
+        life_step(w);
     }
-    return num;
-}
 
+    fclose(out);
+    life_destroy(w);
 
-void next_generation() {
-    GridCell new_grid[GRID_X][GRID_Y];
-
-    
-
-    // Copy new grid to main grid
-    for (int i = 0; i < GRID_X; i++) {
-        for (int j = 0; j < GRID_Y; j++) {
-            grid[i][j].status = new_grid[i][j].status;
-        }
-    }
-}
-
-
-void print_grid() {
-    for (int i = 0; i < GRID_X; i++) {
-        for (int j = 0; j < GRID_Y; j++) {
-            printf("%c", grid[i][j].status ? '*' : '.');
-        }
-        printf("\n");
-    }
-}
-
-int main() {
-    init_grid(); 
-    first_grid();
-    for ( int i=0; i<1000; i++){
-        //printf("\nGeneration %d:\n", i+1);
-        next_generation();
-        
-        
-        //clock_gettime();
-    }
-    printf("\nFinal Generation:\n");
-    print_grid();
+    printf("Simulation completed — generations saved to life_output.txt\n");
     return 0;
 }

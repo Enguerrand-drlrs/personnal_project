@@ -86,3 +86,13 @@ void life_print(LifeWorld *w) {
     }
     putchar('\n');
 }
+
+void life_save(FILE *f, LifeWorld *w, uint16_t gen) {
+    fprintf(f, "Generation %u\n", gen);
+    for (uint16_t y = 0; y < w->height; y++) {
+        for (uint16_t x = 0; x < w->width; x++)
+            fputc(GET(w, x, y) ? '*' : '.', f);
+        fputc('\n', f);
+    }
+    fputc('\n', f);
+}
