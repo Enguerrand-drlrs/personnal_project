@@ -1,6 +1,4 @@
-#include <stdio.h>
-#include <stdlib.h>
-#include <time.h>
+#include "dependencies.h"
 /*
 Rules : 
 Any celles with fewer than 2 neighbourgs die (underpopulation)
