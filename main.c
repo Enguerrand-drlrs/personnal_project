@@ -1,4 +1,5 @@
-#include "dependencies.h"
+#include "gameoflife.h"
+#include "gameoflife.c"
 /*
 Rules : 
 Any celles with fewer than 2 neighbourgs die (underpopulation)
@@ -8,15 +9,11 @@ Any dead celles with exactly 3 neighbours become a live celle (reproduction)
 */
 
 unsigned char status = 0; // 0 = dead, 1 = alive
-typedef struct GridCell {
-    unsigned char status;
-} GridCell;
 
 
-// make the grid
-#define GRID_X 10
-#define GRID_Y 10
-GridCell grid[GRID_X][GRID_Y];
+
+
+
 void init_grid() {
     for (int i = 0; i < GRID_X; i++) {
         for (int j = 0; j < GRID_Y; j++) {
