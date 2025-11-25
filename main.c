@@ -10,21 +10,28 @@ Any dead celles with exactly 3 neighbours become a live celle (reproduction)
 
 int main(int argc, char **argv) {
     uint16_t width  = 50;
-    uint16_t height = 20;
-    uint16_t gens   = 100;
+    uint16_t height = 50;
+    uint16_t gens   = 10;
 
     srand(time(NULL));
 
     LifeWorld *w = life_create(width, height);
-    if (!w) {
+    if (w == NULL) {
         fprintf(stderr, "Memory allocation failed!\n");
         return 1;
     }
 
-    life_randomize(w);
+    // Grid is initialized to all dead cells (no random initialization)
+    // Only the pattern from glider.txt will be alive
+    
+    // Load a pattern from glider.txt and place it at the center:
+    if (life_load_pattern(w, "glider.txt") != 0) {
+        fprintf(stderr, "Failed to load pattern (continuing with random init)\n");
+        life_randomize(w);
+    }
 
     FILE *out = fopen("life_output.txt", "w");
-    if (!out) {
+    if (out == NULL) {
         perror("Error creating output file");
         life_destroy(w);
         return 1;

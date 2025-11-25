@@ -16,6 +16,7 @@ typedef struct {
 LifeWorld *life_create(uint16_t width, uint16_t height);
 void life_destroy(LifeWorld *w);
 void life_randomize(LifeWorld *w);
+int life_load_pattern(LifeWorld *w, const char *filename);
 void life_step(LifeWorld *w);
 void life_print(LifeWorld *w);
 void life_save(FILE *f, LifeWorld *w, uint16_t gen);
