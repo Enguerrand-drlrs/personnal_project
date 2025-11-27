@@ -1,5 +1,7 @@
 #include "gameoflife.h"
 #include <string.h>
+#include <stdlib.h>
+#include <stdio.h>
 
 // ---- Allocation (contiguous byte-per-cell buffers) ----
 LifeWorld *life_create(uint16_t width, uint16_t height) {
@@ -139,12 +141,54 @@ static inline uint8_t neighbor_count(const LifeWorld *w, uint16_t x, uint16_t y)
 
 // ---- Evolution (optimized) ----
 void life_step(LifeWorld *w) {
-    uint32_t total = (uint32_t)w->width * w->height;
+    // For performance, use a specialized torus implementation when possible
+    if (w->boundary == BOUNDARY_TORUS) {
+        // optimized torus stepping
+        uint16_t width = w->width;
+        uint16_t height = w->height;
+        const uint8_t *grid = w->grid;
+        uint8_t *next = w->next;
+
+        for (uint16_t y = 0; y < height; y++) {
+            uint16_t y_up = (y == 0) ? (height - 1) : (y - 1);
+            uint16_t y_down = (y + 1 == height) ? 0 : (y + 1);
+            const uint8_t *row_up = grid + (uint32_t)y_up * width;
+            const uint8_t *row = grid + (uint32_t)y * width;
+            const uint8_t *row_down = grid + (uint32_t)y_down * width;
+
+            for (uint16_t x = 0; x < width; x++) {
+                uint16_t x_left = (x == 0) ? (width - 1) : (x - 1);
+                uint16_t x_right = (x + 1 == width) ? 0 : (x + 1);
+
+                uint8_t n = 0;
+                n += row_up[x_left];
+                n += row_up[x];
+                n += row_up[x_right];
+                n += row[x_left];
+                n += row[x_right];
+                n += row_down[x_left];
+                n += row_down[x];
+                n += row_down[x_right];
+
+                uint8_t alive = row[x];
+                uint8_t cell_next = (alive && (n == 2 || n == 3)) || (!alive && n == 3);
+                next[(uint32_t)y * width + x] = cell_next;
+            }
+        }
+
+        // Swap buffers
+        uint8_t *tmp = w->grid;
+        w->grid = w->next;
+        w->next = tmp;
+        return;
+    }
+
+    // Fallback to generic implementation using neighbor_count for other boundaries
     uint16_t width = w->width;
     uint16_t height = w->height;
     const uint8_t *grid = w->grid;
     uint8_t *next = w->next;
-    
+
     for (uint16_t y = 0; y < height; y++) {
         for (uint16_t x = 0; x < width; x++) {
             uint8_t alive = grid[(uint32_t)y * width + x];
@@ -153,7 +197,7 @@ void life_step(LifeWorld *w) {
             next[(uint32_t)y * width + x] = cell_next;
         }
     }
-    
+
     // Swap buffers
     uint8_t *tmp = w->grid;
     w->grid = w->next;
@@ -161,14 +205,51 @@ void life_step(LifeWorld *w) {
 }
 
 // ---- Display ----
+// render scale global (default 1)
+int life_render_scale = 1;
+
 void life_print(LifeWorld *w, uint16_t gen) {
-    printf("\x1b[H");  // Move cursor to home
-    printf("Generation: %u\n\n", gen);
-    for (uint16_t y = 0; y < w->height; y++) {
-        for (uint16_t x = 0; x < w->width; x++)
-            putchar(w->grid[(uint32_t)y * w->width + x] ? '*' : '.');
-        putchar('\n');
+    // Build the whole frame in a buffer and write once to stdout
+    int scale = life_render_scale > 1 ? life_render_scale : 1;
+    uint16_t out_w = (w->width + scale - 1) / scale;
+    uint16_t out_h = (w->height + scale - 1) / scale;
+    size_t row_len = (size_t)out_w + 1; // +1 for newline
+    size_t need = 64 + row_len * (size_t)out_h; // header + scaled grid
+    static char *buf = NULL;
+    static size_t bufcap = 0;
+    if (need > bufcap) {
+        free(buf);
+        buf = (char *)malloc(need);
+        if (buf == NULL) return; // allocation failure silently skip
+        bufcap = need;
     }
+
+    char *p = buf;
+    // Home escape + header
+    memcpy(p, "\x1b[H", 3); p += 3;
+    int n = sprintf(p, "Generation: %u\n\n", gen);
+    p += n;
+
+    // Scaled output: group (scale x scale) cells into one char.
+    for (uint16_t oy = 0; oy < out_h; oy++) {
+        uint16_t base_y = oy * scale;
+        for (uint16_t ox = 0; ox < out_w; ox++) {
+            uint16_t base_x = ox * scale;
+            // If any cell in the block is alive -> '*', else '.'
+            int any = 0;
+            for (uint16_t dy = 0; dy < scale && base_y + dy < w->height && !any; dy++) {
+                const uint8_t *row = w->grid + (uint32_t)(base_y + dy) * w->width;
+                for (uint16_t dx = 0; dx < scale && base_x + dx < w->width; dx++) {
+                    if (row[base_x + dx]) { any = 1; break; }
+                }
+            }
+            *p++ = any ? '*' : '.';
+        }
+        *p++ = '\n';
+    }
+
+    size_t written = p - buf;
+    fwrite(buf, 1, written, stdout);
     fflush(stdout);
 }
 

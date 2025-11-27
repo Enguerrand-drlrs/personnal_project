@@ -27,5 +27,8 @@ void life_print(LifeWorld *w, uint16_t gen);
 void life_clear_screen(void);
 void life_save_final(FILE *f, LifeWorld *w);
 
+// Render scale: group `life_render_scale`×`life_render_scale` cells into one output character
+extern int life_render_scale;
+
 
 #endif
