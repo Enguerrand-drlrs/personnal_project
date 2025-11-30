@@ -3,7 +3,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 
-// ---- Allocation (contiguous byte-per-cell buffers) ----
+// ---- Allocation (bitpacked buffers: 1 bit per cell) ----
 LifeWorld *life_create(uint16_t width, uint16_t height) {
     LifeWorld *w = malloc(sizeof(LifeWorld));
     if (w == NULL) return NULL;
@@ -11,8 +11,10 @@ LifeWorld *life_create(uint16_t width, uint16_t height) {
     w->height = height;
 
     uint32_t total = (uint32_t)width * height;
-    w->grid = calloc(total, sizeof(uint8_t));  // All zeros (dead)
-    w->next = calloc(total, sizeof(uint8_t));  // All zeros (dead)
+    uint32_t bytes_needed = (total + 7) / 8;  // Round up to nearest byte
+    
+    w->grid = calloc(bytes_needed, sizeof(uint8_t));  // All zeros (dead)
+    w->next = calloc(bytes_needed, sizeof(uint8_t));  // All zeros (dead)
     
     if (w->grid == NULL || w->next == NULL) {
         free(w->grid);
@@ -20,6 +22,7 @@ LifeWorld *life_create(uint16_t width, uint16_t height) {
         free(w);
         return NULL;
     }
+    w->boundary = BOUNDARY_TORUS;  // Default boundary
     return w;
 }
 
@@ -32,8 +35,9 @@ void life_destroy(LifeWorld *w) {
 
 void life_randomize(LifeWorld *w) {
     uint32_t total = (uint32_t)w->width * w->height;
-    for (uint32_t i = 0; i < total; i++)
-        w->grid[i] = (rand() & 1) ? 1 : 0;
+    uint32_t bytes_needed = (total + 7) / 8;
+    for (uint32_t i = 0; i < bytes_needed; i++)
+        w->grid[i] = (uint8_t)rand();
 }
 
 // Load a pattern from a file and place it centered in the grid.
@@ -82,7 +86,8 @@ int life_load_pattern(LifeWorld *w, const char *filename) {
 
             if (gx >= 0 && gx < (int)w->width && gy >= 0 && gy < (int)w->height) {
                 if (pattern_data[py][px] == '*') {
-                    w->grid[(uint32_t)gy * w->width + gx] = 1;
+                    uint32_t idx = (uint32_t)gy * w->width + gx;
+                    BIT_SET(w->grid, idx);
                 }
             }
         }
@@ -93,10 +98,8 @@ int life_load_pattern(LifeWorld *w, const char *filename) {
 
 // ---- Neighbor counting honoring boundary mode ----
 static inline uint8_t neighbor_count(const LifeWorld *w, uint16_t x, uint16_t y) {
-    const uint8_t *grid = w->grid;
     uint16_t width = w->width;
     uint16_t height = w->height;
-    uint32_t stride = width;
     uint8_t n = 0;
 
     for (int dy = -1; dy <= 1; dy++) {
@@ -132,69 +135,33 @@ static inline uint8_t neighbor_count(const LifeWorld *w, uint16_t x, uint16_t y)
                     break;
             }
 
-            n += grid[(uint32_t)yy * stride + (uint32_t)xx];
+            n += BIT_GET(w->grid, (uint32_t)yy * width + (uint32_t)xx);
             if (n > 3) return n;
         }
     }
     return n;
 }
 
-// ---- Evolution (optimized) ----
+// ---- Evolution (optimized for torus) ----
 void life_step(LifeWorld *w) {
-    // For performance, use a specialized torus implementation when possible
-    if (w->boundary == BOUNDARY_TORUS) {
-        // optimized torus stepping
-        uint16_t width = w->width;
-        uint16_t height = w->height;
-        const uint8_t *grid = w->grid;
-        uint8_t *next = w->next;
-
-        for (uint16_t y = 0; y < height; y++) {
-            uint16_t y_up = (y == 0) ? (height - 1) : (y - 1);
-            uint16_t y_down = (y + 1 == height) ? 0 : (y + 1);
-            const uint8_t *row_up = grid + (uint32_t)y_up * width;
-            const uint8_t *row = grid + (uint32_t)y * width;
-            const uint8_t *row_down = grid + (uint32_t)y_down * width;
-
-            for (uint16_t x = 0; x < width; x++) {
-                uint16_t x_left = (x == 0) ? (width - 1) : (x - 1);
-                uint16_t x_right = (x + 1 == width) ? 0 : (x + 1);
-
-                uint8_t n = 0;
-                n += row_up[x_left];
-                n += row_up[x];
-                n += row_up[x_right];
-                n += row[x_left];
-                n += row[x_right];
-                n += row_down[x_left];
-                n += row_down[x];
-                n += row_down[x_right];
-
-                uint8_t alive = row[x];
-                uint8_t cell_next = (alive && (n == 2 || n == 3)) || (!alive && n == 3);
-                next[(uint32_t)y * width + x] = cell_next;
-            }
-        }
-
-        // Swap buffers
-        uint8_t *tmp = w->grid;
-        w->grid = w->next;
-        w->next = tmp;
-        return;
-    }
-
-    // Fallback to generic implementation using neighbor_count for other boundaries
     uint16_t width = w->width;
     uint16_t height = w->height;
     const uint8_t *grid = w->grid;
     uint8_t *next = w->next;
 
+    // Use generic neighbor_count for all boundary modes
     for (uint16_t y = 0; y < height; y++) {
         for (uint16_t x = 0; x < width; x++) {
-            uint8_t alive = grid[(uint32_t)y * width + x];
+            uint32_t idx = (uint32_t)y * width + x;
+            uint8_t alive = BIT_GET(grid, idx);
             uint8_t n = neighbor_count(w, x, y);
             uint8_t cell_next = (alive && (n == 2 || n == 3)) || (!alive && n == 3);
-            next[(uint32_t)y * width + x] = cell_next;
+            
+            if (cell_next) {
+                BIT_SET(next, idx);
+            } else {
+                BIT_CLR(next, idx);
+            }
         }
     }
 
@@ -238,9 +205,9 @@ void life_print(LifeWorld *w, uint16_t gen) {
             // If any cell in the block is alive -> '*', else '.'
             int any = 0;
             for (uint16_t dy = 0; dy < scale && base_y + dy < w->height && !any; dy++) {
-                const uint8_t *row = w->grid + (uint32_t)(base_y + dy) * w->width;
                 for (uint16_t dx = 0; dx < scale && base_x + dx < w->width; dx++) {
-                    if (row[base_x + dx]) { any = 1; break; }
+                    uint32_t idx = (uint32_t)(base_y + dy) * w->width + (base_x + dx);
+                    if (BIT_GET(w->grid, idx)) { any = 1; break; }
                 }
             }
             *p++ = any ? '*' : '.';
@@ -260,8 +227,10 @@ void life_clear_screen(void) {
 
 void life_save_final(FILE *f, LifeWorld *w) {
     for (uint16_t y = 0; y < w->height; y++) {
-        for (uint16_t x = 0; x < w->width; x++)
-            fputc(w->grid[(uint32_t)y * w->width + x] ? '*' : '.', f);
+        for (uint16_t x = 0; x < w->width; x++) {
+            uint32_t idx = (uint32_t)y * w->width + x;
+            fputc(BIT_GET(w->grid, idx) ? '*' : '.', f);
+        }
         fputc('\n', f);
     }
 }

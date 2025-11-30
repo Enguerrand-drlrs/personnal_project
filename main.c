@@ -4,7 +4,13 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <stdbool.h>
-
+/*
+Rules : 
+Any cell with fewer than 2 neighbourgs die (underpopulation)
+Any cell with 2 or 3 neighbours live on to the next generation
+Any cell with more than 3 neighbours die (overpopulation)
+Any dead cell with exactly 3 neighbours become a live cell (reproduction)
+*/
 // Helper to convert timespec to milliseconds
 static double timespec_to_ms(struct timespec ts) {
     return ts.tv_sec * 1000.0 + ts.tv_nsec / 1000000.0;
@@ -22,13 +28,6 @@ static double timespec_diff_ms(struct timespec start, struct timespec end) {
     }
     return timespec_to_ms(result);
 }
-/*
-Rules : 
-Any celles with fewer than 2 neighbourgs die (underpopulation)
-Any celles with 2 or 3 neighbours live on to the next generation
-Any celles with more than 3 neighbours die (overpopulation)
-Any dead celles with exactly 3 neighbours become a live celle (reproduction)
-*/
 
 int main(int argc, char **argv) {
     // Default values matching the example

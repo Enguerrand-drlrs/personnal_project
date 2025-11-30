@@ -6,14 +6,19 @@
 #include <stdio.h>
 #include <time.h>
 
-// Use byte-per-cell for speed (not bit-packed)
+// Bit manipulation macros for bitpacked grid
+#define BIT_SET(buf, i)   ((buf)[(i) >> 3] |= (1U << ((i) & 7)))
+#define BIT_CLR(buf, i)   ((buf)[(i) >> 3] &= ~(1U << ((i) & 7)))
+#define BIT_GET(buf, i)   (((buf)[(i) >> 3] >> ((i) & 7)) & 1)
+
+// Use bitpacking for 64 KiB constraint (1 bit per cell)
 typedef enum { BOUNDARY_EDGE = 0, BOUNDARY_TORUS, BOUNDARY_MIRROR, BOUNDARY_ALIVE } BoundaryMode;
 
 typedef struct {
     uint16_t width;
     uint16_t height;
-    uint8_t *grid;       // current generation (contiguous, 1 byte per cell)
-    uint8_t *next;       // next generation (contiguous, 1 byte per cell)
+    uint8_t *grid;       // current generation (bitpacked, 1 bit per cell)
+    uint8_t *next;       // next generation (bitpacked, 1 bit per cell)
     BoundaryMode boundary;
 } LifeWorld;
 
